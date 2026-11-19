@@ -11,3 +11,12 @@
 - Los parámetros se validan como numéricos mayores o iguales a 0.
 - monto_max debe ser mayor o igual que monto_min cuando ambos están presentes.
 - El comportamiento existente del filtro por estado y fechas se mantiene sin cambios.
+
+## 2026-11-18
+
+### Cambiado
+- Se refactorizó el registro de transacciones hacia TransaccionService.
+- Se refactorizó la actualización de estado de las transacciones.
+- Se implementaron reglas de comisión aplicando OCP.
+- Se agregó soporte para tarjeta, transferencia y billetera digital.
+- Se incorporó el Enum EstadoTransaccion para los estados.

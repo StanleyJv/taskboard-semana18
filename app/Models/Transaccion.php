@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Enums\EstadoTransaccion;
 
 class Transaccion extends Model
 {
@@ -14,12 +15,13 @@ class Transaccion extends Model
     protected $table = 'transacciones';
 
     protected $fillable = [
-        'comercio_id',
-        'monto',
-        'moneda',
-        'cliente_nombre',
-        'metodo_pago',
-        'estado',
+    'comercio_id',
+    'monto',
+    'comision',
+    'moneda',
+    'cliente_nombre',
+    'metodo_pago',
+    'estado',
     ];
 
     public function comercio(): BelongsTo
@@ -31,4 +33,10 @@ class Transaccion extends Model
     {
         return $this->hasMany(EventoTransaccion::class);
     }
+protected function casts(): array
+{
+    return [
+        'estado' => EstadoTransaccion::class,
+    ];
+}
 }

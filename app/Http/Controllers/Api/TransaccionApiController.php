@@ -9,6 +9,8 @@ use App\Models\Transaccion;
 use App\Services\TransaccionService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use App\Http\Requests\UpdateTransaccionRequest;
+use App\Enums\EstadoTransaccion;
 
 class TransaccionApiController extends Controller
 {
@@ -21,7 +23,7 @@ class TransaccionApiController extends Controller
         $datos = $request->validate([
             'estado' => [
                 'nullable',
-                Rule::in(['Iniciada', 'Completada', 'Fallida']),
+                Rule::enum(EstadoTransaccion::class)
             ],
         ]);
 
@@ -68,7 +70,7 @@ class TransaccionApiController extends Controller
         $datos = $request->validate([
             'estado' => [
                 'nullable',
-                Rule::in(['Iniciada', 'Completada', 'Fallida']),
+                Rule::enum(EstadoTransaccion::class)
             ],
             'desde' => [
                 'nullable',
@@ -162,4 +164,16 @@ class TransaccionApiController extends Controller
             404
         );
     }
+    public function update(
+    UpdateTransaccionRequest $request,
+    Transaccion $transaccion
+) {
+    return new TransaccionResource(
+        $this->servicio->cambiarEstado(
+            $request->user(),
+            $transaccion,
+            $request->validated()['estado']
+        )
+    );
+}
 }

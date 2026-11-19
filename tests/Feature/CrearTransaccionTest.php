@@ -26,6 +26,7 @@ class CrearTransaccionTest extends TestCase
                 'comercio_id' => 1,
                 'cliente_nombre' => 'Luis',
                 'monto' => 25.50,
+                'metodo_pago' => 'tarjeta',
             ], $datos)
         );
     }
@@ -57,16 +58,16 @@ class CrearTransaccionTest extends TestCase
             ->assertJsonValidationErrors('estado');
     }
 
-public function test_crear_registra_el_evento(): void
-{
-    $this->crear([])
-        ->assertStatus(201);
+    public function test_crear_registra_el_evento(): void
+    {
+        $this->crear([])
+            ->assertStatus(201);
 
-    $id = Transaccion::latest('id')->first()->id;
+        $id = Transaccion::latest('id')->first()->id;
 
-    $this->assertDatabaseHas('eventos_transaccion', [
-        'transaccion_id' => $id,
-        'estado_nuevo' => 'Iniciada',
-    ]);
-}
+        $this->assertDatabaseHas('eventos_transaccion', [
+            'transaccion_id' => $id,
+            'estado_nuevo' => 'Iniciada',
+        ]);
+    }
 }

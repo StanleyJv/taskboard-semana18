@@ -11,7 +11,7 @@ class RegistrarTransaccionTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_registra_transaccion_correctamente(): void
+    public function test_registra_transaccion_con_comision_de_tarjeta(): void
     {
         $user = User::factory()->create();
 
@@ -25,19 +25,19 @@ class RegistrarTransaccionTest extends TestCase
             'comercio_id' => $comercio->id,
             'cliente_nombre' => 'Cliente Prueba',
             'monto' => 100,
+            'metodo_pago' => 'tarjeta',
         ])
             ->assertCreated()
             ->assertJsonPath('data.estado', 'Iniciada');
 
         $this->assertDatabaseHas('transacciones', [
             'comercio_id' => $comercio->id,
-            'cliente_nombre' => 'Cliente Prueba',
-            'monto' => 100,
-            'estado' => 'Iniciada',
+            'metodo_pago' => 'tarjeta',
+            'comision' => 3.50,
         ]);
     }
 
-    public function test_transaccion_guarda_valores_predeterminados(): void
+    public function test_comision_fija_en_transferencia(): void
     {
         $user = User::factory()->create();
 
@@ -51,13 +51,13 @@ class RegistrarTransaccionTest extends TestCase
             'comercio_id' => $comercio->id,
             'cliente_nombre' => 'Cliente Prueba',
             'monto' => 100,
+            'metodo_pago' => 'transferencia',
         ])->assertCreated();
 
         $this->assertDatabaseHas('transacciones', [
             'comercio_id' => $comercio->id,
-            'moneda' => 'USD',
-            'metodo_pago' => 'No especificado',
-            'estado' => 'Iniciada',
+            'metodo_pago' => 'transferencia',
+            'comision' => 1.50,
         ]);
     }
 
@@ -76,6 +76,7 @@ class RegistrarTransaccionTest extends TestCase
             'comercio_id' => $comercio->id,
             'cliente_nombre' => 'Cliente Prueba',
             'monto' => 100,
+            'metodo_pago' => 'tarjeta',
         ])
             ->assertStatus(422)
             ->assertJsonValidationErrors('comercio_id');
@@ -93,11 +94,12 @@ class RegistrarTransaccionTest extends TestCase
 
         $this->postJson('/api/transacciones', [
             'comercio_id' => $comercio->id,
-            'cliente_nombre' => '',
+            'cliente_nombre' => 'Cliente Prueba',
             'monto' => 100,
+            'metodo_pago' => 'bitcoin',
         ])
             ->assertStatus(422)
-            ->assertJsonValidationErrors('cliente_nombre');
+            ->assertJsonValidationErrors('metodo_pago');
     }
 
     public function test_sin_token_devuelve_401(): void
@@ -112,6 +114,30 @@ class RegistrarTransaccionTest extends TestCase
             'comercio_id' => $comercio->id,
             'cliente_nombre' => 'Cliente Prueba',
             'monto' => 100,
+            'metodo_pago' => 'tarjeta',
         ])->assertUnauthorized();
     }
+    public function test_comision_de_billetera_es_dos_por_ciento(): void
+{
+    $user = User::factory()->create();
+
+    $comercio = Comercio::factory()->create([
+        'user_id' => $user->id,
+    ]);
+
+    Sanctum::actingAs($user);
+
+    $this->postJson('/api/transacciones', [
+        'comercio_id' => $comercio->id,
+        'cliente_nombre' => 'Cliente Prueba',
+        'monto' => 100,
+        'metodo_pago' => 'billetera',
+    ])->assertCreated();
+
+    $this->assertDatabaseHas('transacciones', [
+        'comercio_id' => $comercio->id,
+        'metodo_pago' => 'billetera',
+        'comision' => 2.00,
+    ]);
+}
 }
