@@ -6,12 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\GuardarTransaccionApiRequest;
 use App\Http\Resources\TransaccionResource;
 use App\Models\Transaccion;
+use App\Services\TransaccionService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class TransaccionApiController extends Controller
 {
+    public function __construct(
+        private TransaccionService $servicio
+    ) {}
+
     public function index(Request $request)
     {
         $datos = $request->validate([
@@ -42,25 +46,10 @@ class TransaccionApiController extends Controller
 
     public function store(GuardarTransaccionApiRequest $request)
     {
-        $datos = $request->validated();
-
-        $datos['moneda'] = 'USD';
-        $datos['metodo_pago'] = 'No especificado';
-        $datos['estado'] = 'Iniciada';
-
-        $t = DB::transaction(function () use ($datos) {
-
-            $t = Transaccion::create($datos);
-
-            $t->eventos()->create([
-                'tipo_evento' => 'creacion',
-                'detalle' => 'Transacción iniciada',
-                'estado_anterior' => 'Iniciada',
-                'estado_nuevo' => 'Iniciada',
-            ]);
-
-            return $t;
-        });
+        $t = $this->servicio->registrar(
+            $request->user(),
+            $request->validated()
+        );
 
         return (new TransaccionResource($t))
             ->response()
