@@ -1,15 +1,15 @@
-# 🧩⚙️ TaskBoard — Semana 17
+# 🧩⚙️ TaskBoard — Semana 18
 
 ![Laravel](https://img.shields.io/badge/Laravel-12-red?logo=laravel)
 ![PHP](https://img.shields.io/badge/PHP-8.2-blue?logo=php)
 ![MySQL](https://img.shields.io/badge/MySQL-MariaDB-orange?logo=mysql)
 ![Sanctum](https://img.shields.io/badge/Laravel-Sanctum-red)
-![Spring Boot](https://img.shields.io/badge/Spring_Boot-Framework_Comparado-6DB33F?logo=springboot&logoColor=white)
+![SOLID](https://img.shields.io/badge/SOLID-Arquitectura-6C63FF)
 ![UPED](https://img.shields.io/badge/UPED-Integración_de_Sistemas-0B2E59)
 
 Proyecto desarrollado para la asignatura **Integración de Sistemas** de la **Universidad Pedagógica de El Salvador (UPED)**.
 
-Durante la **Semana 17** se trabajó la comparación de frameworks de back-end, el análisis de equivalencias entre tecnologías, la elaboración de una matriz de decisión ponderada y la justificación técnica de la elección de Laravel para el proyecto TaskBoard.
+Durante la **Semana 18** se trabajó la arquitectura y las buenas prácticas del proyecto TaskBoard, refactorizando la lógica de transacciones hacia una capa de servicios, aplicando principios SOLID, implementando reglas de comisión extensibles y reemplazando estados escritos manualmente por un Enum.
 
 **Estudiante:** Josthyn Stanley Cruz Vásquez  
 **Carrera:** Ingeniería en Sistemas y Computación  
@@ -20,156 +20,349 @@ Durante la **Semana 17** se trabajó la comparación de frameworks de back-end, 
 
 # 🎯 Objetivo general
 
-Comparar Laravel con otros frameworks de back-end, identificar equivalencias entre sus principales componentes y justificar técnicamente la elección de Laravel para TaskBoard mediante criterios relacionados con experiencia del equipo, tiempo de desarrollo, ecosistema, costo de hosting y rendimiento.
+Mejorar la organización y mantenibilidad de la API de TaskBoard mediante una refactorización controlada, separando responsabilidades entre controladores, Form Requests, servicios, recursos y reglas de negocio, sin perder el comportamiento esperado de la aplicación.
 
 ---
 
-# 🔄 Comparación de frameworks
+# 🧱 Arquitectura y separación de responsabilidades
 
-Durante la semana se analizaron implementaciones equivalentes de un endpoint de transacciones en:
+Durante la Semana 18 se revisó el método `store` de las transacciones para identificar las responsabilidades que se encontraban concentradas en el controlador.
 
-- Laravel
-- Spring Boot
-- Django REST Framework
-- Express
-
-Se compararon aspectos como:
+Entre ellas se encontraban:
 
 ```text
-Rutas y verbos HTTP
-Autenticación
 Validación de entrada
-Acceso a datos
-Protección contra IDOR
-Respuestas JSON
-Códigos HTTP
+Verificación del comercio del usuario
+Cálculo de comisión
+Registro de la transacción
+Registro de eventos
+Uso de transacciones de base de datos
+Registro en logs
+Construcción de la respuesta
 ```
 
-También se observó cómo cada framework distribuye la lógica entre controladores, servicios, validadores y herramientas propias del ecosistema.
+La solución consistió en mover la lógica de negocio a una capa de servicios y dejar al controlador principalmente como coordinador de la solicitud.
 
 ---
 
-# 📚 Diccionario de equivalencias
+# 🛠️ TransaccionService
 
-Para el análisis principal se eligió **Spring Boot** como framework de comparación con Laravel.
-
-| Concepto | Laravel | Spring Boot |
-|---|---|---|
-| Crear un proyecto | `composer create-project` | Spring Initializr / `spring init` |
-| Rutas | `routes/api.php` | `@RequestMapping`, `@GetMapping`, `@PostMapping` |
-| Controlador | `Controller` | `@RestController` |
-| ORM | Eloquent | Spring Data JPA + Hibernate |
-| Migraciones | `php artisan migrate` | Flyway o Liquibase |
-| Validación | Form Request | Bean Validation con `@Valid` |
-| Salida JSON | API Resource | DTO + Jackson |
-| Autenticación de API | Sanctum | Spring Security |
-| Pruebas | PHPUnit + `postJson` | JUnit + Spring Boot Test / MockMvc |
-| Consola | Artisan | Maven / Gradle + Spring Boot CLI |
-
----
-
-# 📊 Matriz de decisión de TaskBoard
-
-## Contexto del proyecto
-
-TaskBoard es una pasarela de pagos desarrollada por un equipo pequeño con experiencia en PHP y Laravel. El proyecto tiene un plazo corto, presupuesto limitado y requiere una API segura y fácil de mantener.
-
-| Criterio | Peso | Laravel | Spring Boot | Django |
-|---|---:|---:|---:|---:|
-| Experiencia del equipo | 30 % | 5 | 2 | 2 |
-| Tiempo de desarrollo | 25 % | 5 | 2 | 4 |
-| Ecosistema para API y autenticación | 20 % | 5 | 5 | 4 |
-| Costo de hosting | 15 % | 5 | 3 | 4 |
-| Rendimiento | 10 % | 3 | 5 | 3 |
-| **Total ponderado** | **100 %** | **4.80** | **3.05** | **3.30** |
-
-## Cálculo de Laravel
+Se creó el servicio:
 
 ```text
-Laravel = (0.30 × 5) + (0.25 × 5) + (0.20 × 5) + (0.15 × 5) + (0.10 × 3)
-Laravel = 1.50 + 1.25 + 1.00 + 0.75 + 0.30
-Laravel = 4.80
+app/Services/TransaccionService.php
+```
+
+Este servicio concentra la lógica relacionada con:
+
+- registro de transacciones;
+- cálculo de comisiones;
+- cambio de estado;
+- validación de reglas de negocio;
+- creación de eventos de transacción;
+- uso de `DB::transaction`;
+- registro de información mediante `Log`.
+
+El servicio no recibe objetos `Request` ni devuelve respuestas HTTP directamente.
+
+---
+
+# 📥 Refactorización de store
+
+El método `store` del controlador API fue simplificado para delegar la lógica al servicio.
+
+Flujo actual:
+
+```text
+Request
+   ↓
+GuardarTransaccionApiRequest
+   ↓
+TransaccionApiController
+   ↓
+TransaccionService
+   ↓
+Modelo / Base de datos
+   ↓
+TransaccionResource
+```
+
+Antes de realizar la refactorización se ejecutaron pruebas automatizadas para establecer una red de seguridad.
+
+Después de mover la lógica al servicio se volvieron a ejecutar las pruebas y se comprobó que el comportamiento esperado se mantuviera.
+
+---
+
+# 🔄 Refactorización de update
+
+También se implementó y refactorizó el proceso de actualización del estado de una transacción.
+
+Se creó:
+
+```text
+app/Http/Requests/UpdateTransaccionRequest.php
+```
+
+La validación de entrada se realiza en el Form Request, mientras que la regla de negocio permanece en `TransaccionService`.
+
+Regla principal:
+
+```text
+Solo una transacción en estado Iniciada puede cambiar de estado.
+```
+
+Además:
+
+- una transacción ajena devuelve `404`;
+- una transacción que ya no está iniciada devuelve `422`;
+- el cambio de estado registra un evento;
+- la actualización se ejecuta dentro de una transacción de base de datos.
+
+---
+
+# 🧩 Principio Abierto/Cerrado · OCP
+
+Para evitar condicionales crecientes en el cálculo de comisiones se implementó una estructura basada en reglas.
+
+Interfaz principal:
+
+```text
+app/Services/Comisiones/ReglaComision.php
+```
+
+Cada tipo de comisión implementa esta interfaz.
+
+## Reglas implementadas
+
+| Método de pago | Clase | Comisión |
+|---|---|---:|
+| Tarjeta | `ComisionTarjeta` | 3.5 % |
+| Transferencia | `ComisionTransferencia` | $1.50 |
+| Billetera | `ComisionBilletera` | 2 % |
+
+---
+
+# 🧮 Calculadora de comisiones
+
+Se creó:
+
+```text
+app/Services/CalculadoraComision.php
+```
+
+La calculadora recibe un conjunto de reglas y utiliza la primera que corresponda al método de pago solicitado.
+
+Esto permite agregar nuevas reglas sin modificar directamente la lógica interna de la calculadora.
+
+---
+
+# 🔌 Contenedor de servicios de Laravel
+
+Durante el ejercicio se produjo intencionalmente el error:
+
+```text
+BindingResolutionException
+```
+
+Laravel podía resolver clases automáticamente, pero no podía determinar qué objetos debían formar parte del arreglo de reglas de comisión.
+
+La solución fue registrar manualmente `CalculadoraComision` en:
+
+```text
+app/Providers/AppServiceProvider.php
+```
+
+Reglas registradas:
+
+```text
+ComisionTarjeta
+ComisionTransferencia
+ComisionBilletera
 ```
 
 ---
 
-# 🧪 Sensibilidad de la decisión
+# 💳 Métodos de pago disponibles
 
-Se modificó el peso de dos criterios para comprobar si la elección de Laravel dependía demasiado de una sola condición.
-
-Cambio realizado:
+Actualmente la API acepta:
 
 ```text
-Experiencia del equipo: 30 % → 15 %
-Rendimiento:             10 % → 25 %
+tarjeta
+transferencia
+billetera
 ```
 
-Nuevos resultados:
+El campo utilizado por el proyecto es:
 
 ```text
-Laravel      → 4.50
-Spring Boot  → 3.50
-Django       → 3.45
+metodo_pago
 ```
-
-Laravel continúa con el puntaje más alto, por lo que la decisión se considera relativamente robusta incluso aumentando la importancia del rendimiento.
 
 ---
 
-# 🌐 Análisis de escenarios
+# 🏷️ Enum de estados
 
-Se evaluaron cuatro escenarios con necesidades distintas:
+Como mejora adicional se creó:
 
-| Caso | Framework elegido | Motivo principal |
-|---|---|---|
-| Sistema de citas para clínicas | ASP.NET Core | Equipo con experiencia en C# e infraestructura Microsoft |
-| Portal educativo con panel administrativo | Django | Experiencia en Python y panel de administración integrado |
-| Recepción de datos de miles de sensores | Express / NestJS | Muchas conexiones concurrentes y bajo consumo de recursos |
-| Pago de impuestos municipales | Laravel | Experiencia en PHP, bajo costo y plazo corto |
+```text
+app/Enums/EstadoTransaccion.php
+```
+
+Estados disponibles:
+
+```text
+Iniciada
+Completada
+Fallida
+```
+
+El modelo `Transaccion` utiliza un cast para convertir automáticamente el campo `estado` en una instancia de `EstadoTransaccion`.
 
 ---
 
-# 📄 Anexo A · Comparación Laravel vs. Spring Boot
+# 🔬 Experimento con Tinker
 
-El cuadro comparativo y la conclusión tecnológica de la Semana 17 se encuentran en:
+Se ejecutó:
 
-```text
-docs/anexo-a-comparativo.md
+```bash
+php artisan tinker
 ```
 
-Aspectos comparados:
+Luego:
 
-- lenguaje y ecosistema
-- curva de aprendizaje
-- ORM y acceso a datos
-- autenticación de API
-- herramientas de pruebas
-- despliegue y hosting
-- escenario donde conviene más cada framework
+```php
+App\Models\Transaccion::first()->estado
+```
 
-## Conclusión
+Resultado:
 
-Para TaskBoard, nuestra pasarela de pagos, elegimos Laravel porque el proyecto se ha desarrollado durante el ciclo con PHP y Laravel, lo que reduce la curva de aprendizaje y permite trabajar con mayor rapidez. También contamos con herramientas como Eloquent para el acceso a datos y Sanctum para la autenticación de nuestra API, además de poder utilizar opciones de hosting de bajo costo.
+```text
+App\Enums\EstadoTransaccion
+name: "Iniciada"
+value: "Iniciada"
+```
 
-Spring Boot sería una mejor alternativa para un sistema empresarial de mayor escala, especialmente si el equipo tuviera experiencia en Java y existieran mayores requisitos de rendimiento o integración con su ecosistema. Sin embargo, para TaskBoard, por el plazo disponible, la experiencia del equipo y los recursos del proyecto, Laravel es la opción que mejor se adapta a nuestras necesidades.
+Esto comprobó que el atributo ya no devuelve un string simple, sino una instancia del Enum.
+
+Por esta razón, en `TransaccionResource` se utiliza:
+
+```php
+$this->estado->value
+```
+
+para devolver el estado como texto dentro del JSON.
+
+---
+
+# ✅ Pruebas automatizadas
+
+Se ejecutaron pruebas específicas para el registro de transacciones:
+
+```bash
+php artisan test --filter=RegistrarTransaccion
+```
+
+Resultado:
+
+```text
+6 pruebas aprobadas
+14 assertions
+```
+
+También se ejecutaron las pruebas de actualización:
+
+```bash
+php artisan test --filter=ActualizarTransaccion
+```
+
+Resultado:
+
+```text
+3 pruebas aprobadas
+4 assertions
+```
+
+Finalmente se ejecutó toda la suite:
+
+```bash
+php artisan test
+```
+
+Resultado final:
+
+```text
+15 pruebas aprobadas
+31 assertions
+```
+
+---
+
+# 🧪 Casos verificados
+
+Entre los casos comprobados se encuentran:
+
+- registro de transacción con tarjeta;
+- comisión de tarjeta del 3.5 %;
+- comisión fija de transferencia;
+- comisión de billetera del 2 %;
+- comercio ajeno;
+- datos inválidos;
+- solicitud sin token;
+- actualización correcta del estado;
+- intento de actualizar una transacción no iniciada;
+- intento de modificar una transacción ajena;
+- registro del evento de creación;
+- validaciones del monto;
+- protección del estado enviado por el cliente.
 
 ---
 
 # 🤖 Uso de IA y verificación
 
-Se revisaron afirmaciones generadas con apoyo de IA y se contrastaron con documentación oficial.
+La IA fue utilizada como apoyo durante el proceso de refactorización.
 
-| Afirmación | Verificación |
+Se verificaron especialmente los siguientes puntos:
+
+| Verificación | Resultado |
 |---|---|
-| Spring Boot puede trabajar con Spring Data JPA para acceso a datos mediante repositorios | ✅ Correcta |
-| Spring Boot permite validación mediante Bean Validation y anotaciones de `jakarta.validation` | ✅ Correcta |
-| Spring Boot dispone de herramientas como `@SpringBootTest` y MockMvc para realizar pruebas | ✅ Correcta |
+| No cambiar nombres de rutas sin necesidad | ✅ |
+| Mantener las reglas de negocio | ✅ |
+| No utilizar métodos estáticos en el servicio | ✅ |
+| El servicio no recibe `Request` | ✅ |
+| No devolver `response()` desde el servicio | ✅ |
+| Ejecutar pruebas después de los cambios | ✅ |
 
-Fuentes utilizadas:
+La comprobación final se realizó ejecutando la suite automatizada del proyecto.
 
-- Spring Data JPA: https://docs.spring.io/spring-data/jpa/reference/index.html
-- Spring Framework Validation: https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-validation.html
-- Spring Boot Testing: https://docs.spring.io/spring-boot/reference/testing/spring-boot-applications.html
+---
+
+# 📝 Registro de cambios
+
+Los cambios de la Semana 18 fueron documentados en:
+
+```text
+CAMBIOS.md
+```
+
+Se registraron en la sección **Cambiado**:
+
+- refactorización del registro de transacciones hacia `TransaccionService`;
+- refactorización de la actualización de estado;
+- implementación de reglas de comisión aplicando OCP;
+- soporte para tarjeta, transferencia y billetera;
+- incorporación de `EstadoTransaccion`.
+
+---
+
+# 🌿 Rama de trabajo
+
+La versión final correspondiente a la Semana 18 se encuentra en la rama:
+
+```text
+refactor/servicios
+```
+
+Esta rama contiene la refactorización, las reglas de comisión, el Enum y las pruebas automatizadas desarrolladas durante la práctica.
 
 ---
 
@@ -188,55 +381,52 @@ Fuentes utilizadas:
 
 - Uso de `apiResource` y API Resources.
 - Manejo de respuestas JSON.
-- Códigos HTTP `200`, `201`, `204`, `404` y `422`.
-- Validación mediante Form Requests.
-- Uso de reglas como `Rule::in` y `exists`.
+- Uso de Form Requests.
+- Validaciones de entrada.
+- Separación entre controlador y servicio.
+- Uso de `TransaccionResource`.
 
 ### Bloque B · Autenticación con Sanctum
 
-- Registro e inicio de sesión.
-- Generación y uso de tokens.
-- Cierre de sesión y revocación de tokens.
+- Autenticación mediante Laravel Sanctum.
+- Uso de tokens.
 - Rutas protegidas mediante `auth:sanctum`.
-- Protección para impedir el acceso a recursos de otros usuarios.
+- Restricción de acceso a recursos pertenecientes a otros usuarios.
 
 ### Bloque C · Pruebas y manejo de errores
 
-- Colección y bitácora con 15 o más casos de prueba.
-- Verificación de respuestas y códigos HTTP.
-- Errores corregidos y verificados.
-- Respuestas de error en JSON.
+- Pruebas Feature.
+- Respuestas `404` y `422`.
+- Pruebas antes y después de refactorizar.
 - Uso de `DB::transaction`.
+- Verificación final con 15 pruebas aprobadas.
 
 ### Bloque D · IA y mantenimiento
 
-- Ficha de uso crítico de IA.
-- Verificación de información generada con IA.
-- Mantenimiento correctivo y evolutivo.
+- Uso controlado de IA.
+- Revisión del código generado.
+- Aplicación de principios SOLID.
 - Registro de cambios en `CAMBIOS.md`.
-
----
-
-# 🗣️ Hoja de preparación para el debate
-
-La dinámica **“Defiende tu framework”** y el sorteo correspondiente fueron cancelados por el docente durante la clase del **12 de noviembre de 2026** por falta de tiempo.
-
-Por esta razón, esta sección no aplica para la entrega de la Semana 17.
+- Refactorización hacia una capa de servicios.
 
 ---
 
 # ✅ Resultado final
 
 ```text
-Comparación de frameworks              → Completada
-Diccionario de equivalencias           → Completado
-Matriz ponderada                       → Laravel 4.80
-Experimento de sensibilidad            → Completado
-Escenarios E, F, G y H                 → Justificados
-Anexo A                                → Preparado
-Conclusión tecnológica                 → Completada
-Verificación de IA                     → Completada
-Responsables de defensa en README      → Registrados
+Pruebas de store                      → Completadas
+TransaccionService                    → Implementado
+Refactorización de store              → Completada
+Refactorización de update             → Completada
+Reglas de comisión OCP                → Implementadas
+Comisión de tarjeta                   → 3.5 %
+Comisión de transferencia             → $1.50
+Comisión de billetera                 → 2 %
+Binding manual en AppServiceProvider  → Completado
+Enum EstadoTransaccion                → Implementado
+Experimento con Tinker                → Completado
+CAMBIOS.md                            → Actualizado
+Suite final                           → 15 pruebas / 31 assertions
 ```
 
 ---
@@ -251,10 +441,10 @@ Responsables de defensa en README      → Registrados
 - REST
 - JSON
 - PHPUnit
-- Bruno
-- Spring Boot (comparación)
-- Spring Data JPA
-- Spring Security
+- Form Requests
+- API Resources
+- Service Layer
+- Principios SOLID
 - Git
 - GitHub
 - XAMPP
@@ -264,8 +454,9 @@ Responsables de defensa en README      → Registrados
 # ▶️ Ejecución del proyecto
 
 ```bash
-git clone https://github.com/StanleyJv/taskboard-semana17.git
-cd taskboard-semana17
+git clone https://github.com/StanleyJv/taskboard-semana18.git
+cd taskboard-semana18
+git checkout refactor/servicios
 composer install
 php artisan key:generate
 php artisan migrate --seed
@@ -278,11 +469,19 @@ API:
 http://127.0.0.1:8000/api
 ```
 
+Para ejecutar las pruebas:
+
+```bash
+php artisan test
+```
+
 ---
 
 # 🔗 Repositorio
 
-https://github.com/StanleyJv/taskboard-semana17
+https://github.com/StanleyJv/taskboard-semana18
+
+**Rama final:** `refactor/servicios`
 
 ---
 
