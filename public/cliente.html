@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Cliente TaskBoard</title>
+</head>
+<body>
+
+    <h1>Tienda en línea · Mis comercios en TaskBoard</h1>
+
+    <form id="login">
+        <input
+            id="email"
+            type="email"
+            value="ana@taskboard.test"
+        >
+
+        <input
+            id="password"
+            type="password"
+            value="password123"
+        >
+
+        <button type="submit">Entrar</button>
+    </form>
+
+    <button id="salir" hidden>Salir</button>
+
+    <p id="estado"></p>
+
+    <ul id="lista"></ul>
+
+    <script>
+        const base = '/api';
+        let token = null;
+
+        const login = document.getElementById('login');
+        const salir = document.getElementById('salir');
+        const estado = document.getElementById('estado');
+        const lista = document.getElementById('lista');
+
+        login.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const r = await fetch(base + '/login', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    email: document.getElementById('email').value,
+                    password: document.getElementById('password').value,
+                    dispositivo: 'cliente-web'
+                })
+            });
+
+            if (r.status !== 201) {
+                estado.textContent =
+                    'Credenciales incorrectas (' + r.status + ')';
+                return;
+            }
+
+            token = (await r.json()).token;
+
+            login.hidden = true;
+            salir.hidden = false;
+
+            await cargarComercios();
+        });
+
+        async function cargarComercios() {
+            const rComercios = await fetch(base + '/comercios', {
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                }
+            });
+
+            if (rComercios.status === 401) {
+                volverAlLogin();
+                return;
+            }
+
+            const rTransacciones = await fetch(
+                base + '/transacciones?estado=Completada',
+                {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    }
+                }
+            );
+
+            if (rTransacciones.status === 401) {
+                volverAlLogin();
+                return;
+            }
+
+            const { data: comercios } = await rComercios.json();
+            const { data: transacciones } = await rTransacciones.json();
+
+            lista.replaceChildren();
+
+            comercios.forEach(c => {
+                const cantidad = transacciones.filter(
+                    t => t.comercio_id === c.id
+                ).length;
+
+                const li = document.createElement('li');
+
+                li.textContent =
+                    c.nombre +
+                    ' · ' +
+                    (c.rubro ?? 'Sin rubro') +
+                    ' · Completadas: ' +
+                    cantidad;
+
+                lista.appendChild(li);
+            });
+
+            estado.textContent =
+                comercios.length + ' comercio(s)';
+        }
+
+        salir.addEventListener('click', async () => {
+            if (token) {
+                await fetch(base + '/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+            }
+
+            token = null;
+            volverAlLogin();
+        });
+
+        function volverAlLogin() {
+            token = null;
+            lista.replaceChildren();
+            estado.textContent = 'Sesión cerrada.';
+
+            login.hidden = false;
+            salir.hidden = true;
+        }
+    </script>
+
+</body>
+</html>
